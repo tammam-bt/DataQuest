@@ -32,24 +32,151 @@
   <div class="max-w-4xl mx-auto px-4 py-10 sm:py-14">
     <header class="text-center mb-10">
       <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Coverage Prediction</h1>
-      <p class="mt-2 text-slate-600">Upload a CSV to generate predicted coverage bundles per user.</p>
+      <p class="mt-2 text-slate-600">Upload a CSV or enter data manually to get predicted coverage bundles.</p>
     </header>
 
-    <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div id="dropZone" class="drop-zone border-2 border-dashed border-slate-300 rounded-lg p-8 sm:p-12 text-center transition-colors cursor-pointer hover:border-primary-400 hover:bg-slate-50/50">
-        <input type="file" id="fileInput" accept=".csv" class="hidden" />
-        <div class="space-y-2">
-          <p class="text-slate-600 font-medium">Drag and drop your CSV here, or <span class="text-primary-600">browse</span></p>
-          <p class="text-sm text-slate-500">Accepts .csv only</p>
-        </div>
-        <p id="fileName" class="mt-3 text-sm font-medium text-primary-600 hidden"></p>
-      </div>
+    <!-- Tab navigation -->
+    <div class="flex border-b border-slate-200 bg-white rounded-t-xl overflow-hidden">
+      <button type="button" id="tabUpload" class="tab-btn flex-1 px-6 py-4 font-medium text-primary-600 bg-primary-50 border-b-2 border-primary-600">Upload CSV</button>
+      <button type="button" id="tabManual" class="tab-btn flex-1 px-6 py-4 font-medium text-slate-600 hover:bg-slate-50 border-b-2 border-transparent">Manual Entry</button>
+    </div>
 
-      <div class="px-6 pb-6 pt-2 flex justify-center">
-        <button id="submitBtn" type="button" disabled class="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-          <span id="btnText">Generate Predictions</span>
-          <span id="btnSpinner" class="spinner hidden"></span>
-        </button>
+    <!-- Tab: Upload CSV (existing functionality unchanged) -->
+    <section id="panelUpload" class="tab-panel bg-white rounded-b-xl shadow-sm border border-t-0 border-slate-200 overflow-hidden">
+      <div class="p-6">
+        <div id="dropZone" class="drop-zone border-2 border-dashed border-slate-300 rounded-lg p-8 sm:p-12 text-center transition-colors cursor-pointer hover:border-primary-400 hover:bg-slate-50/50">
+          <input type="file" id="fileInput" accept=".csv" class="hidden" />
+          <div class="space-y-2">
+            <p class="text-slate-600 font-medium">Drag and drop your CSV here, or <span class="text-primary-600">browse</span></p>
+            <p class="text-sm text-slate-500">Accepts .csv only</p>
+          </div>
+          <p id="fileName" class="mt-3 text-sm font-medium text-primary-600 hidden"></p>
+        </div>
+
+        <div class="px-2 pb-2 pt-6 flex justify-center">
+          <button id="submitBtn" type="button" disabled class="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+            <span id="btnText">Generate Predictions</span>
+            <span id="btnSpinner" class="spinner hidden"></span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab: Manual Entry -->
+    <section id="panelManual" class="tab-panel hidden bg-white rounded-b-xl shadow-sm border border-t-0 border-slate-200 overflow-hidden">
+      <div class="p-6">
+        <form id="manualForm" class="space-y-6 max-w-2xl mx-auto">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="Broker_ID" class="block text-sm font-medium text-slate-700 mb-1">Broker ID</label>
+              <input type="text" id="Broker_ID" name="Broker_ID" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="e.g. BRK001" />
+            </div>
+            <div>
+              <label for="Region_Code" class="block text-sm font-medium text-slate-700 mb-1">Region Code</label>
+              <input type="text" id="Region_Code" name="Region_Code" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="e.g. R1" />
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="Broker_Agency_Type" class="block text-sm font-medium text-slate-700 mb-1">Broker Agency Type</label>
+              <select id="Broker_Agency_Type" name="Broker_Agency_Type" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                <option value="National_Corporate">National Corporate</option>
+                <option value="Urban_Boutique">Urban Boutique</option>
+              </select>
+            </div>
+            <div>
+              <label for="Deductible_Tier" class="block text-sm font-medium text-slate-700 mb-1">Deductible Tier</label>
+              <select id="Deductible_Tier" name="Deductible_Tier" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                <option value="Tier_1_High_Ded">Tier 1 — High Deductible</option>
+                <option value="Tier_2_Mid_Ded">Tier 2 — Mid Deductible</option>
+                <option value="Tier_3_Low_Ded">Tier 3 — Low Deductible</option>
+                <option value="Tier_4_Zero_Ded">Tier 4 — Zero Deductible</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="Acquisition_Channel" class="block text-sm font-medium text-slate-700 mb-1">Acquisition Channel</label>
+              <select id="Acquisition_Channel" name="Acquisition_Channel" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                <option value="Affiliate_Group">Affiliate Group</option>
+                <option value="Aggregator_Site">Aggregator Site</option>
+                <option value="Corporate_Partner">Corporate Partner</option>
+                <option value="Direct_Website">Direct Website</option>
+                <option value="Local_Broker">Local Broker</option>
+              </select>
+            </div>
+            <div>
+              <label for="Payment_Schedule" class="block text-sm font-medium text-slate-700 mb-1">Payment Schedule</label>
+              <select id="Payment_Schedule" name="Payment_Schedule" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                <option value="Annual_Upfront">Annual Upfront</option>
+                <option value="Monthly_EFT">Monthly EFT</option>
+                <option value="Quarterly_Invoice">Quarterly Invoice</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="Employment_Status" class="block text-sm font-medium text-slate-700 mb-1">Employment Status</label>
+              <select id="Employment_Status" name="Employment_Status" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                <option value="Contractor">Contractor</option>
+                <option value="Employed_FullTime">Employed Full Time</option>
+                <option value="Self_Employed">Self Employed</option>
+                <option value="Unemployed">Unemployed</option>
+              </select>
+            </div>
+            <div>
+              <label for="Policy_Start_Month" class="block text-sm font-medium text-slate-700 mb-1">Policy Start Month</label>
+              <select id="Policy_Start_Month" name="Policy_Start_Month" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                <option value="January">January</option><option value="February">February</option><option value="March">March</option><option value="April">April</option><option value="May">May</option><option value="June">June</option><option value="July">July</option><option value="August">August</option><option value="September">September</option><option value="October">October</option><option value="November">November</option><option value="December">December</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="Adult_Dependents" class="block text-sm font-medium text-slate-700 mb-1">Adult Dependents</label>
+              <input type="number" id="Adult_Dependents" name="Adult_Dependents" min="0" value="0" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
+            </div>
+            <div>
+              <label for="Child_Dependents" class="block text-sm font-medium text-slate-700 mb-1">Child Dependents</label>
+              <input type="number" id="Child_Dependents" name="Child_Dependents" min="0" value="0" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="Infant_Dependents" class="block text-sm font-medium text-slate-700 mb-1">Infant Dependents</label>
+              <input type="number" id="Infant_Dependents" name="Infant_Dependents" min="0" value="0" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
+            </div>
+            <div>
+              <label for="Estimated_Annual_Income" class="block text-sm font-medium text-slate-700 mb-1">Estimated Annual Income</label>
+              <input type="number" id="Estimated_Annual_Income" name="Estimated_Annual_Income" min="0" step="1000" value="0" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="Previous_Claims_Filed" class="block text-sm font-medium text-slate-700 mb-1">Previous Claims Filed</label>
+              <input type="number" id="Previous_Claims_Filed" name="Previous_Claims_Filed" min="0" value="0" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
+            </div>
+            <div>
+              <label for="Previous_Policy_Duration_Months" class="block text-sm font-medium text-slate-700 mb-1">Previous Policy Duration (months)</label>
+              <input type="number" id="Previous_Policy_Duration_Months" name="Previous_Policy_Duration_Months" min="0" value="0" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
+            </div>
+          </div>
+          <div class="flex justify-center pt-2">
+            <button type="submit" id="manualSubmitBtn" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+              <span id="manualBtnText">Get Prediction</span>
+              <span id="manualBtnSpinner" class="spinner hidden"></span>
+            </button>
+          </div>
+        </form>
+        <div id="manualResultSection" class="mt-6 hidden max-w-2xl mx-auto">
+          <div class="bg-primary-50 border border-primary-200 rounded-lg px-4 py-4">
+            <p class="text-sm font-medium text-slate-700">Predicted coverage bundle</p>
+            <p id="manualResultLabel" class="mt-1 text-lg font-semibold text-primary-700"></p>
+          </div>
+        </div>
+        <div id="manualErrorSection" class="mt-6 hidden max-w-2xl mx-auto">
+          <div class="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-800 text-sm" id="manualErrorMessage"></div>
+        </div>
       </div>
     </section>
 
@@ -98,7 +225,36 @@
     const errorSection = document.getElementById('errorSection');
     const errorMessage = document.getElementById('errorMessage');
 
+    const tabUpload = document.getElementById('tabUpload');
+    const tabManual = document.getElementById('tabManual');
+    const panelUpload = document.getElementById('panelUpload');
+    const panelManual = document.getElementById('panelManual');
+    const manualForm = document.getElementById('manualForm');
+    const manualSubmitBtn = document.getElementById('manualSubmitBtn');
+    const manualBtnText = document.getElementById('manualBtnText');
+    const manualBtnSpinner = document.getElementById('manualBtnSpinner');
+    const manualResultSection = document.getElementById('manualResultSection');
+    const manualResultLabel = document.getElementById('manualResultLabel');
+    const manualErrorSection = document.getElementById('manualErrorSection');
+    const manualErrorMessage = document.getElementById('manualErrorMessage');
+
     let selectedFile = null;
+
+    function switchTab(activeTab) {
+      const isUpload = activeTab === 'upload';
+      tabUpload.classList.toggle('text-primary-600', isUpload);
+      tabUpload.classList.toggle('bg-primary-50', isUpload);
+      tabUpload.classList.toggle('border-primary-600', isUpload);
+      tabUpload.classList.toggle('border-transparent', !isUpload);
+      tabManual.classList.toggle('text-primary-600', !isUpload);
+      tabManual.classList.toggle('bg-primary-50', !isUpload);
+      tabManual.classList.toggle('border-primary-600', !isUpload);
+      tabManual.classList.toggle('border-transparent', isUpload);
+      panelUpload.classList.toggle('hidden', !isUpload);
+      panelManual.classList.toggle('hidden', isUpload);
+    }
+    tabUpload.addEventListener('click', () => switchTab('upload'));
+    tabManual.addEventListener('click', () => switchTab('manual'));
 
     function showError(msg) {
       errorMessage.textContent = msg;
@@ -134,6 +290,44 @@
         fileNameEl.classList.remove('hidden');
         submitBtn.disabled = false;
         hideError();
+      }
+    });
+
+    manualForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      manualErrorSection.classList.add('hidden');
+      manualResultSection.classList.add('hidden');
+      const numFields = ['Adult_Dependents', 'Child_Dependents', 'Infant_Dependents', 'Estimated_Annual_Income', 'Previous_Claims_Filed', 'Previous_Policy_Duration_Months'];
+      const payload = {};
+      const fd = new FormData(manualForm);
+      for (const [k, v] of fd.entries()) {
+        payload[k] = numFields.includes(k) ? (k === 'Estimated_Annual_Income' ? parseFloat(v) || 0 : parseInt(v, 10) || 0) : v;
+      }
+      manualSubmitBtn.disabled = true;
+      manualBtnText.classList.add('hidden');
+      manualBtnSpinner.classList.remove('hidden');
+      try {
+        const res = await fetch('/predict/manual', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          manualErrorMessage.textContent = Array.isArray(data.detail) ? data.detail.map(x => x.msg || x.loc).join(' ') : (data.detail || res.statusText || 'Request failed');
+          manualErrorSection.classList.remove('hidden');
+          return;
+        }
+        const bundle = data.Purchased_Coverage_Bundle;
+        manualResultLabel.textContent = BUNDLE_NAMES[bundle] !== undefined ? BUNDLE_NAMES[bundle] : `Bundle ${bundle}`;
+        manualResultSection.classList.remove('hidden');
+      } catch (err) {
+        manualErrorMessage.textContent = err.message || 'Network error. Is the API running?';
+        manualErrorSection.classList.remove('hidden');
+      } finally {
+        manualSubmitBtn.disabled = false;
+        manualBtnText.classList.remove('hidden');
+        manualBtnSpinner.classList.add('hidden');
       }
     });
 
