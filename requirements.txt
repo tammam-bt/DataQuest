@@ -1,0 +1,11 @@
+# Data science / ML (for solution.py and model.joblib deserialization)
+pandas
+numpy
+joblib
+lightgbm
+catboost
+
+# Web API
+fastapi
+uvicorn[standard]
+python-multipart

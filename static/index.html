@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DataQuest — Coverage Prediction</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' },
+            slate: { 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1', 400: '#94a3b8', 500: '#64748b', 600: '#475569', 700: '#334155', 800: '#1e293b', 900: '#0f172a' }
+          },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .drop-zone.dragover { @apply border-primary-500 bg-primary-50; }
+    .spinner { border: 2px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; width: 20px; height: 20px; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased">
+  <div class="max-w-4xl mx-auto px-4 py-10 sm:py-14">
+    <header class="text-center mb-10">
+      <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Coverage Prediction</h1>
+      <p class="mt-2 text-slate-600">Upload a CSV to generate predicted coverage bundles per user.</p>
+    </header>
+
+    <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div id="dropZone" class="drop-zone border-2 border-dashed border-slate-300 rounded-lg p-8 sm:p-12 text-center transition-colors cursor-pointer hover:border-primary-400 hover:bg-slate-50/50">
+        <input type="file" id="fileInput" accept=".csv" class="hidden" />
+        <div class="space-y-2">
+          <p class="text-slate-600 font-medium">Drag and drop your CSV here, or <span class="text-primary-600">browse</span></p>
+          <p class="text-sm text-slate-500">Accepts .csv only</p>
+        </div>
+        <p id="fileName" class="mt-3 text-sm font-medium text-primary-600 hidden"></p>
+      </div>
+
+      <div class="px-6 pb-6 pt-2 flex justify-center">
+        <button id="submitBtn" type="button" disabled class="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+          <span id="btnText">Generate Predictions</span>
+          <span id="btnSpinner" class="spinner hidden"></span>
+        </button>
+      </div>
+    </section>
+
+    <section id="resultsSection" class="mt-8 hidden">
+      <h2 class="text-lg font-semibold text-slate-900 mb-3">Results</h2>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th class="px-4 py-3 font-semibold text-slate-700">User ID</th>
+              <th class="px-4 py-3 font-semibold text-slate-700">Purchased Coverage Bundle</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="errorSection" class="mt-6 hidden">
+      <div class="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-800 text-sm" id="errorMessage"></div>
+    </section>
+  </div>
+
+  <script>
+    const BUNDLE_NAMES = {
+      0: 'Basic Auto',
+      1: 'Standard Auto Plus',
+      2: 'Premium Family',
+      3: 'Premium Family Plus',
+      4: 'Essential Home & Auto',
+      5: 'Complete Protection',
+      6: 'Elite Bundle',
+      7: 'Business Essentials',
+      8: 'Comprehensive Plus',
+      9: 'Custom Enterprise'
+    };
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileNameEl = document.getElementById('fileName');
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
+    const btnSpinner = document.getElementById('btnSpinner');
+    const resultsSection = document.getElementById('resultsSection');
+    const resultsBody = document.getElementById('resultsBody');
+    const errorSection = document.getElementById('errorSection');
+    const errorMessage = document.getElementById('errorMessage');
+
+    let selectedFile = null;
+
+    function showError(msg) {
+      errorMessage.textContent = msg;
+      errorSection.classList.remove('hidden');
+    }
+    function hideError() {
+      errorSection.classList.add('hidden');
+    }
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.name.toLowerCase().endsWith('.csv')) {
+        selectedFile = file;
+        fileNameEl.textContent = file.name;
+        fileNameEl.classList.remove('hidden');
+        submitBtn.disabled = false;
+        hideError();
+      } else {
+        showError('Please drop a CSV file.');
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files?.[0];
+      if (file && file.name.toLowerCase().endsWith('.csv')) {
+        selectedFile = file;
+        fileNameEl.textContent = file.name;
+        fileNameEl.classList.remove('hidden');
+        submitBtn.disabled = false;
+        hideError();
+      }
+    });
+
+    submitBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      hideError();
+      submitBtn.disabled = true;
+      btnText.classList.add('hidden');
+      btnSpinner.classList.remove('hidden');
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      try {
+        const res = await fetch('/predict/csv', { method: 'POST', body: formData });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showError(data.detail || res.statusText || 'Request failed');
+          return;
+        }
+        if (!Array.isArray(data)) {
+          showError('Unexpected response format.');
+          return;
+        }
+        resultsBody.innerHTML = data.map(row => {
+          const bundle = row.Purchased_Coverage_Bundle;
+          const label = BUNDLE_NAMES[bundle] !== undefined ? BUNDLE_NAMES[bundle] : `Bundle ${bundle}`;
+          return `<tr class="hover:bg-slate-50"><td class="px-4 py-3 font-mono text-slate-800">${escapeHtml(String(row.User_ID))}</td><td class="px-4 py-3 text-slate-700">${escapeHtml(label)}</td></tr>`;
+        }).join('');
+        resultsSection.classList.remove('hidden');
+      } catch (err) {
+        showError(err.message || 'Network error. Is the API running?');
+      } finally {
+        submitBtn.disabled = false;
+        btnText.classList.remove('hidden');
+        btnSpinner.classList.add('hidden');
+      }
+    });
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
