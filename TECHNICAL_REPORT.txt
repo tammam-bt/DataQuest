@@ -1,0 +1,226 @@
+================================================================================
+  INSURANCE COVERAGE PREDICTION APPLICATION — TECHNICAL REPORT
+================================================================================
+  DataQuest Web Application | Architecture & Implementation Details
+================================================================================
+
+1. EXECUTIVE SUMMARY
+--------------------------------------------------------------------------------
+This application is a full-stack web service that wraps a trained machine
+learning model for predicting insurance coverage bundles. It provides:
+  • A FastAPI backend that loads a serialized model (CatBoost/LightGBM) once
+    at startup and exposes health, CSV batch prediction, and single-record
+    manual prediction endpoints.
+  • A single-page frontend (vanilla HTML/JS + Tailwind CSS) with two modes:
+    CSV file upload for batch predictions and a manual form for single
+    predictions.
+  • No modification to the original ML pipeline (solution.py); the app imports
+    and invokes load_model(), preprocess(), and predict() as-is.
+
+
+2. HIGH-LEVEL ARCHITECTURE
+--------------------------------------------------------------------------------
+  +------------------+     HTTP      +------------------+
+  |   Browser        | <===========> |   FastAPI        |
+  |   (index.html)   |   JSON/HTML   |   (main.py)      |
+  +------------------+               +--------+---------+
+                                              |
+                                      +-------v--------+
+                                      | solution.py    |
+                                      | (preprocess,  |
+                                      |  predict)      |
+                                      +-------+--------+
+                                              |
+                                      +-------v--------+
+                                      | model.joblib   |
+                                      | (trained model)|
+                                      +----------------+
+
+  • Single process: Uvicorn serves the FastAPI app; the same process serves
+    static HTML and runs the ML pipeline.
+  • Model is loaded once on application startup and kept in memory for all
+    requests.
+  • Frontend is static (one HTML file) served at GET / and uses fetch() for
+    all API calls.
+
+
+3. BACKEND (main.py)
+--------------------------------------------------------------------------------
+  Framework:     FastAPI
+  Server:        Uvicorn (ASGI)
+  Port:          8000 (default)
+
+  3.1 Startup
+  ----------
+  • On startup, the app calls solution.load_model(), which loads model.joblib
+    from the working directory and stores the result in a global variable.
+  • STATIC_DIR is set to Path(__file__).resolve().parent / "static" so that
+    index.html is served from the static/ folder.
+
+  3.2 Endpoints
+  ------------
+  GET  /              Serves static/index.html (FileResponse).
+  GET  /health        Returns {"status": "healthy"} for liveness checks.
+  POST /predict/csv   Accepts a CSV file (multipart/form-data); returns a JSON
+                      array of { "User_ID", "Purchased_Coverage_Bundle" }.
+  POST /predict/manual Accepts a JSON body (ManualPredictionRequest); returns
+                      { "Purchased_Coverage_Bundle": <int> }.
+
+  3.3 Request/Response Details
+  ---------------------------
+  /predict/csv:
+    • Input:  file (required), key "file", Content-Type multipart/form-data.
+    • Checks: filename must end with .csv; body must parse as valid CSV.
+    • Flow:   Read bytes -> pd.read_csv(io.BytesIO(contents)) -> solution.preprocess(df)
+              -> solution.predict(df_preprocessed, model) -> to_dict(orient="records").
+    • Errors: 400 for invalid/missing CSV; 422 for preprocessing/prediction failure.
+
+  /predict/manual:
+    • Input:  JSON object with field names matching solution.py (Broker_ID,
+              Region_Code, Broker_Agency_Type, Deductible_Tier, Acquisition_Channel,
+              Payment_Schedule, Employment_Status, Policy_Start_Month,
+              Adult_Dependents, Child_Dependents, Infant_Dependents,
+              Estimated_Annual_Income, Previous_Claims_Filed,
+              Previous_Policy_Duration_Months). User_ID is added server-side as
+              "manual_1".
+    • Validation: Pydantic model ManualPredictionRequest with Literal types for
+                  categoricals and ge=0 for numeric fields; populate_by_name=True
+                  so JSON keys match aliases (e.g. Broker_ID).
+    • Flow:   body.model_dump(by_alias=True) -> single-row DataFrame ->
+              solution.preprocess(df) -> solution.predict(...) -> return bundle int.
+    • Errors: 422 for validation or pipeline failure.
+
+
+4. ML PIPELINE (solution.py)
+--------------------------------------------------------------------------------
+  The pipeline is unchanged from the original hackathon script. It exposes
+  three functions used by main.py.
+
+  4.1 load_model()
+  ----------------
+  • joblib.load('model.joblib') from the current working directory.
+  • The serialized model may be CatBoost, LightGBM, or another scikit-learn-
+    compatible estimator; joblib and catboost (and lightgbm) must be installed
+    for deserialization.
+
+  4.2 preprocess(df)
+  ------------------
+  • Input:  Raw DataFrame (e.g. from CSV or manual entry).
+  • Steps:
+    - Drop Employer_ID if present.
+    - Broker_ID: fillna('Unknown'); derive Broker_Policy_Count from value_counts.
+    - Region_Code: fillna('Unknown'); Region_Code_Enc = category codes.
+    - Broker_Agency_Type_Bin: 1 if National_Corporate else 0.
+    - Deductible_Tier: fillna; map to Deductible_Tier_Num (1–4).
+    - Acquisition_Channel: fillna('Unknown'); get_dummies with prefix 'Acq'.
+    - Payment_Schedule_Enc, Employment_Status_Enc: category codes.
+    - Policy_Start_Month_Num: map month names to 1–12.
+  • Output: DataFrame with same User_ID plus engineered/encoded columns expected
+    by the model (e.g. feature_names_).
+
+  4.3 predict(df_processed, model)
+  -------------------------------
+  • Extracts User_ID from df_processed.
+  • Builds feature matrix X from model.feature_names_ (or fallback: all columns
+    except User_ID and Purchased_Coverage_Bundle); missing columns filled with 0.
+  • model.predict(X) -> integer class predictions.
+  • Returns DataFrame with columns User_ID and Purchased_Coverage_Bundle (0–9).
+
+
+5. FRONTEND (static/index.html)
+--------------------------------------------------------------------------------
+  Technology:  Vanilla HTML5, JavaScript (no framework), Tailwind CSS via CDN,
+               Inter font from Google Fonts.
+
+  5.1 Structure
+  ------------
+  • Single page with two tabs: "Upload CSV" and "Manual Entry".
+  • Tab state is toggled via JavaScript (switchTab); only one panel visible.
+  • Upload CSV: drag-and-drop zone + hidden file input, "Generate Predictions"
+    button, results table (User_ID, Purchased_Coverage_Bundle), error message area.
+  • Manual Entry: form with all fields required by the API (text, select, number
+    inputs), "Get Prediction" button, result card (single bundle name), error area.
+  • Bundle labels: integers 0–9 are mapped to human-readable names (e.g. 0 ->
+    "Basic Auto", 9 -> "Custom Enterprise") in a frontend BUNDLE_NAMES object.
+
+  5.2 API Usage
+  -------------
+  • CSV:  FormData with key "file" -> POST /predict/csv -> render table from
+          JSON array.
+  • Manual: JSON payload from form (numeric fields parsed as number) ->
+            POST /predict/manual with Content-Type: application/json ->
+            display manualResultLabel from response Purchased_Coverage_Bundle.
+
+  5.3 IDs and Behavior
+  --------------------
+  • Critical IDs preserved: dropZone, fileInput, fileName, submitBtn, btnText,
+    btnSpinner, tabUpload, tabManual, panelUpload, panelManual, manualForm,
+    manualSubmitBtn, manualBtnText, manualBtnSpinner, manualResultSection,
+    manualResultLabel, manualErrorSection, manualErrorMessage, resultsSection,
+    resultsBody, errorSection, errorMessage.
+  • Loading states: button disabled and spinner shown during requests; restored
+    in finally blocks.
+  • Errors: API error messages (including validation detail) shown in the
+    respective error divs.
+
+
+6. DATA FLOW SUMMARY
+--------------------------------------------------------------------------------
+  CSV path:
+    User selects file -> FormData -> POST /predict/csv -> read CSV -> DataFrame
+    -> preprocess -> predict -> list of {User_ID, Purchased_Coverage_Bundle}
+    -> frontend table with bundle names from BUNDLE_NAMES.
+
+  Manual path:
+    User fills form -> submit -> build JSON (names match API) -> POST /predict/manual
+    -> Pydantic validation -> single-row DataFrame + User_ID="manual_1"
+    -> preprocess -> predict -> {Purchased_Coverage_Bundle: n}
+    -> frontend shows BUNDLE_NAMES[n] in result card.
+
+
+7. DEPENDENCIES (requirements.txt)
+--------------------------------------------------------------------------------
+  Data/ML:   pandas, numpy, joblib, lightgbm, catboost
+  Web:       fastapi, uvicorn[standard], python-multipart
+
+  Note: catboost is required for joblib to deserialize model.joblib if the
+  model was trained with CatBoost. lightgbm is listed for compatibility with
+  LightGBM-trained models.
+
+
+8. FILE STRUCTURE
+--------------------------------------------------------------------------------
+  Project root:
+    main.py              FastAPI app, endpoints, Pydantic model
+    solution.py          ML pipeline (load_model, preprocess, predict)
+    model.joblib         Serialized trained model (not in repo if large)
+    requirements.txt     Python dependencies
+    static/
+      index.html         Single-page frontend (tabs, upload, manual form)
+    TECHNICAL_REPORT.txt This document
+
+
+9. RUNNING THE APPLICATION
+--------------------------------------------------------------------------------
+  From project root (directory containing model.joblib and solution.py):
+
+    pip install -r requirements.txt
+    uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+  Then open http://127.0.0.1:8000/ in a browser.
+  Health check: http://127.0.0.1:8000/health
+
+
+10. SECURITY AND OPERATIONAL NOTES
+--------------------------------------------------------------------------------
+  • No authentication or rate limiting is implemented; suitable for internal or
+    hackathon evaluation use.
+  • Model and solution code assume trusted input; validation is via Pydantic for
+    /predict/manual and basic CSV checks for /predict/csv.
+  • Static assets are served from the same process; for high traffic, consider
+    a reverse proxy and static file server.
+  • The app does not persist predictions or logs by default.
+
+================================================================================
+  End of Technical Report
+================================================================================
